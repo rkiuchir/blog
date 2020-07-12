@@ -81,7 +81,7 @@ def draw_arcgisimage(map, map_list, resolution):
                 service=map_list, xpixels = resolution, verbose= False)
 
 
-fig, axes = plt.subplots(5, 4,figsize=(32,40))
+fig, axes = plt.subplots(10, 2,figsize=(16,80))
 ax = axes.flat
 
 for i in range(len(map_list)):
