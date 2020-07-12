@@ -2,11 +2,10 @@
 hugo
 
 # リポジトリへのpush
-git add -A 
+git add -A
 msg="Update: `date`"
 if [ $# -eq 1 ]
   then msg="$1"
 fi
 git commit -m "$msg"
-git push
-
+git push -f origin master
