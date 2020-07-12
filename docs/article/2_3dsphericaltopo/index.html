@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.72.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Plotlyで標高データを球面に描画し、グルグル回せる地球儀を描いてみる&nbsp;&ndash;&nbsp;rkiuchir</title><link rel="stylesheet" href="/blog/css/core.min.c726ff1e3bd2e2e414d78cd709c307d9efc3b7d9397f4a7f549b444824807e69542c5909502e6f5697996105f47f44c2.css" integrity="sha384-xyb/HjvS4uQU14zXCcMH2e/Dt9k5f0p/VJtESCSAfmlULFkJUC5vVpeZYQX0f0TC"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Plotlyで標高データを球面に描画し、グルグル回せる地球儀を描いてみる" /><meta name="twitter:image" content="http://rkiuchir.github.io/blog/article/2_3dsphericaltopo//images/profile1.png" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/blog/"><img class="site logo" src="/blog/images/Profile1.png" alt /><span class="site name">rkiuchir</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/blog/tags/">Tags</a><a class="nav item" href="https://twitter%2ecom/rkiuchir"target="_blank">Twitter</a><a class="nav item" href="https://rkiuchir%2egithub%2eio/"target="_blank">AboutMe</a></nav></div></span></div><div class="site slogan"><span class="title">Everything is gonna be fine</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Plotlyで標高データを球面に描画し、グルグル回せる地球儀を描いてみる</h1><p class="article date">Saturday, June 13, 2020</p></section><article class="article markdown-body"><p><img class="cover" src="/images/Profile1.png" alt></p><p>こちらは、<a href="https://qiita.com/rkiuchir/items/1243e66be57e89c4d254"target="_blank">Qiitaに投稿した記事</a>と同じ記事になります。</p>
+<h1 id="はじめに">はじめに</h1>
+<p>Pythonをはじめ様々な言語に対応し、比較的容易にインタラクティブな図を描画できる<a href="https://plotly.com/"target="_blank">Plotly</a>を利用して、標高データを用いてGoogle Earthのようなグルグル回せる地球儀を作成してみます。</p>
+<p>結果はこんな感じ。
+<a href="https://rkiuchir.github.io/3DSphericalTopo">https://rkiuchir.github.io/3DSphericalTopo</a></p>
+<p><img  src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/648286/2395e039-3387-8d98-0955-904e64602df3.gif"
+        alt="EarthGlove.gif"/></p>
+<h1 id="3つのポイント">3つのポイント</h1>
+<ol>
+<li>標高データの取得および読み込み</li>
+<li>直交座標系で表現される緯度経度情報を球面座標系に変換（<a href="https://chart-studio.plotly.com/~empet/14813/heatmap-plot-on-a-spherical-map/#/"target="_blank">Plotly Chart Studio: Heatmap plot on a spherical map</a>を参考）</li>
+<li>Plotlyで描画</li>
+</ol>
+<h1 id="実行環境">実行環境</h1>
+<ul>
+<li>macOS 10.14 Mojave</li>
+<li>Python 3.6 (Anaconda)</li>
+<li>Jupyter notebook</li>
+</ul>
+<h1 id="0-plotlyのインストール">0. Plotlyのインストール</h1>
+<p><code>pip install plotly</code>でインストール可能です。</p>
+<h1 id="1-1-標高データの取得">1-1. 標高データの取得</h1>
+<ul>
+<li>全球的に1分刻みの解像度を持つ標高データ（ETOPO1 Global Relief Model）が、<a href="https://www.noaa.gov/"target="_blank">NOAA（アメリカ海洋大気庁: National Oceanic and Atmospheric Administration）</a>における<a href="https://www.ngdc.noaa.gov/mgg/global/"target="_blank">こちらのサイト</a>で公開されています。</li>
+<li>今回は、ETOPO1 Ice Surfaceのgrid-registeredのnetCDF形式ファイル（ETOPO1_Ice_g_gdal.grd）をダウンロードします。</li>
+</ul>
+<h1 id="1-2-標高データの読み込み">1-2. 標高データの読み込み</h1>
+<p>まずは、netCDF形式のデータファイルから緯度経度と標高の3つのデータを読み込みます。</p>
+<ul>
+<li>ここで定義しているInputは、指定された領域の緯度 (lat_area)・経度 (lon_area)・解像度（resolution）です。</li>
+<li>Outputは指定した領域でのmesh typeの緯度 (lon)・経度 (lat)・解像度 (topo)になります。</li>
+<li>解像度の部分は、° (degree)の形式で指定し、最も解像度の高い指定は0.0167°になります。</li>
+</ul>
+<p>解像度に関しては、指定された解像度値に合わせてデータをスキップする形で入力しています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">netCDF4</span> <span class="kn">import</span> <span class="n">Dataset</span>
+
+<span class="k">def</span> <span class="nf">Etopo</span><span class="p">(</span><span class="n">lon_area</span><span class="p">,</span> <span class="n">lat_area</span><span class="p">,</span> <span class="n">resolution</span><span class="p">):</span>
+    <span class="c1">### Input</span>
+    <span class="c1"># resolution: resolution of topography for both of longitude and latitude [deg]</span>
+    <span class="c1"># (Original resolution is 0.0167 deg)</span>
+    <span class="c1"># lon_area and lat_area: the region of the map which you want like [100, 130], [20, 25]</span>
+    <span class="c1">###</span>
+
+
+    <span class="c1">### Output</span>
+    <span class="c1"># Mesh type longitude, latitude, and topography data</span>
+    <span class="c1">###</span>
+
+    <span class="c1"># Read NetCDF data</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="s2">&#34;ETOPO1_Ice_g_gdal.grd&#34;</span><span class="p">,</span> <span class="s2">&#34;r&#34;</span><span class="p">)</span>
+
+    <span class="c1"># Get data</span>
+    <span class="n">lon_range</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;x_range&#39;</span><span class="p">][:]</span>
+    <span class="n">lat_range</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;y_range&#39;</span><span class="p">][:]</span>
+    <span class="n">topo_range</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;z_range&#39;</span><span class="p">][:]</span>
+    <span class="n">spacing</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">][:]</span>
+    <span class="n">dimension</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;dimension&#39;</span><span class="p">][:]</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;z&#39;</span><span class="p">][:]</span>
+
+    <span class="n">lon_num</span> <span class="o">=</span> <span class="n">dimension</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">lat_num</span> <span class="o">=</span> <span class="n">dimension</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Prepare array</span>
+    <span class="n">lon_input</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">lon_num</span><span class="p">);</span> <span class="n">lat_input</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">lat_num</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lon_num</span><span class="p">):</span>
+        <span class="n">lon_input</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">lon_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lat_num</span><span class="p">):</span>
+        <span class="n">lat_input</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">lat_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Create 2D array</span>
+    <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">lon_input</span><span class="p">,</span> <span class="n">lat_input</span><span class="p">)</span>
+
+    <span class="c1"># Convert 2D array from 1D array for z value</span>
+    <span class="n">topo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="p">(</span><span class="n">lat_num</span><span class="p">,</span> <span class="n">lon_num</span><span class="p">))</span>
+
+    <span class="c1"># Skip the data for resolution</span>
+    <span class="k">if</span> <span class="p">((</span><span class="n">resolution</span> <span class="o">&lt;</span> <span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">|</span> <span class="p">(</span><span class="n">resolution</span> <span class="o">&lt;</span> <span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">])):</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Set the highest resolution&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">skip</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">resolution</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span><span class="p">[::</span><span class="n">skip</span><span class="p">,::</span><span class="n">skip</span><span class="p">]</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span><span class="p">[::</span><span class="n">skip</span><span class="p">,::</span><span class="n">skip</span><span class="p">]</span>
+        <span class="n">topo</span> <span class="o">=</span> <span class="n">topo</span><span class="p">[::</span><span class="n">skip</span><span class="p">,::</span><span class="n">skip</span><span class="p">]</span>
+
+    <span class="n">topo</span> <span class="o">=</span> <span class="n">topo</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Select the range of map</span>
+    <span class="n">range1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">lon</span><span class="o">&gt;=</span><span class="n">lon_area</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">lon</span><span class="o">&lt;=</span><span class="n">lon_area</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span><span class="p">[</span><span class="n">range1</span><span class="p">];</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span><span class="p">[</span><span class="n">range1</span><span class="p">];</span> <span class="n">topo</span> <span class="o">=</span> <span class="n">topo</span><span class="p">[</span><span class="n">range1</span><span class="p">]</span>
+    <span class="n">range2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">lat</span><span class="o">&gt;=</span><span class="n">lat_area</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">lat</span><span class="o">&lt;=</span><span class="n">lat_area</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span><span class="p">[</span><span class="n">range2</span><span class="p">];</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span><span class="p">[</span><span class="n">range2</span><span class="p">];</span> <span class="n">topo</span> <span class="o">=</span> <span class="n">topo</span><span class="p">[</span><span class="n">range2</span><span class="p">]</span>
+
+    <span class="c1"># Convert 2D again</span>
+    <span class="n">lon_num</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">lon</span><span class="p">))</span>
+    <span class="n">lat_num</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">lat</span><span class="p">))</span>
+    <span class="n">lon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="p">(</span><span class="n">lat_num</span><span class="p">,</span> <span class="n">lon_num</span><span class="p">))</span>
+    <span class="n">lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="p">(</span><span class="n">lat_num</span><span class="p">,</span> <span class="n">lon_num</span><span class="p">))</span>
+    <span class="n">topo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">topo</span><span class="p">,</span> <span class="p">(</span><span class="n">lat_num</span><span class="p">,</span> <span class="n">lon_num</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">topo</span>
+</code></pre></div><h1 id="2-緯度経度情報を球面座標に変換">2. 緯度経度情報を球面座標に変換</h1>
+<p>（<a href="https://chart-studio.plotly.com/~empet/14813/heatmap-plot-on-a-spherical-map/#/"target="_blank">Plotly Chart Studio: Heatmap plot on a spherical map</a>を参考）</p>
+<p>ここでは、上記で用意された直交系座標で表現された緯度経度情報を球面座標系に変換します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="k">def</span> <span class="nf">degree2radians</span><span class="p">(</span><span class="n">degree</span><span class="p">):</span>
+    <span class="c1"># convert degrees to radians</span>
+    <span class="k">return</span> <span class="n">degree</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span>
+
+<span class="k">def</span> <span class="nf">mapping_map_to_sphere</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="c1">#this function maps the points of coords (lon, lat) to points onto the  </span>
+    <span class="n">sphere</span> <span class="n">of</span> <span class="n">radius</span> <span class="n">radius</span>
+
+    <span class="n">lon</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">lat</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">lon</span><span class="o">=</span><span class="n">degree2radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
+    <span class="n">lat</span><span class="o">=</span><span class="n">degree2radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+    <span class="n">xs</span><span class="o">=</span><span class="n">radius</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+    <span class="n">ys</span><span class="o">=</span><span class="n">radius</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+    <span class="n">zs</span><span class="o">=</span><span class="n">radius</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">xs</span><span class="p">,</span> <span class="n">ys</span><span class="p">,</span> <span class="n">zs</span>
+</code></pre></div><h1 id="3-plotlyで描画">3. Plotlyで描画</h1>
+<p>それでは、実際に球面座標系で表された緯度・経度・標高の3次元データを実際にPlotlyで描画します。</p>
+<p>まず、1-2.で用意した関数を呼び出して全球の標高データを読み込みます。
+あまりの高解像度で読み込むと3乗のオーダーでデータ量が大きくなるので、今回は解像度を0.8°としています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1"># Import topography data</span>
+<span class="c1"># Select the area you want</span>
+<span class="n">resolution</span> <span class="o">=</span> <span class="mf">0.8</span>
+<span class="n">lon_area</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">180.</span><span class="p">,</span> <span class="mf">180.</span><span class="p">]</span>
+<span class="n">lat_area</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">90.</span><span class="p">,</span> <span class="mf">90.</span><span class="p">]</span>
+
+<span class="c1"># Get mesh-shape topography data</span>
+<span class="n">lon_topo</span><span class="p">,</span> <span class="n">lat_topo</span><span class="p">,</span> <span class="n">topo</span> <span class="o">=</span> <span class="n">ReadGeo</span><span class="o">.</span><span class="n">Etopo</span><span class="p">(</span><span class="n">lon_area</span><span class="p">,</span> <span class="n">lat_area</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)</span>
+</code></pre></div><p>次に、2.で用意した関数で球面座標系に変換します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="n">xs</span><span class="p">,</span> <span class="n">ys</span><span class="p">,</span> <span class="n">zs</span> <span class="o">=</span> <span class="n">mapping_map_to_sphere</span><span class="p">(</span><span class="n">lon_topo</span><span class="p">,</span> <span class="n">lat_topo</span><span class="p">)</span>
+</code></pre></div><p>そしてここから、実際に描画に移っていきます。</p>
+<p>まず、標高データの描画に用いるカラースケールを定義します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="c1"># Import color scale</span>
+<span class="kn">import</span> <span class="nn">Plotly_code</span> <span class="kn">as</span> <span class="nn">Pcode</span>
+<span class="n">name</span> <span class="o">=</span> <span class="s2">&#34;topo&#34;</span>
+<span class="n">Ctopo</span> <span class="o">=</span> <span class="n">Pcode</span><span class="o">.</span><span class="n">Colorscale_Plotly</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<span class="n">cmin</span> <span class="o">=</span> <span class="o">-</span><span class="mi">8000</span>
+<span class="n">cmax</span> <span class="o">=</span> <span class="mi">8000</span>
+</code></pre></div><p>そして、Plotlyを用いて描画していきます。
+ここでは、インプットのデータおよびカラースケールを入力します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="n">topo_sphere</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s1">&#39;surface&#39;</span><span class="p">,</span>
+            <span class="n">x</span><span class="o">=</span><span class="n">xs</span><span class="p">,</span>
+            <span class="n">y</span><span class="o">=</span><span class="n">ys</span><span class="p">,</span>
+            <span class="n">z</span><span class="o">=</span><span class="n">zs</span><span class="p">,</span>
+            <span class="n">colorscale</span><span class="o">=</span><span class="n">Ctopo</span><span class="p">,</span>
+            <span class="n">surfacecolor</span><span class="o">=</span><span class="n">topo</span><span class="p">,</span>
+            <span class="n">cmin</span><span class="o">=</span><span class="n">cmin</span><span class="p">,</span>
+            <span class="n">cmax</span><span class="o">=</span><span class="n">cmax</span><span class="p">)</span>
+            <span class="p">)</span>
+</code></pre></div><p>見栄えが良くなるように軸などは消しておきます。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="n">noaxis</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">showbackground</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">showgrid</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">showline</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">showticklabels</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">ticks</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="n">zeroline</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+</code></pre></div><p>最後にlayoutを用いてタイトルや背景色などを指定します。
+今回は、Google Earthを少し意識して、背景色を黒色としています。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python">
+<span class="kn">import</span> <span class="nn">plotly.graph_objs</span> <span class="kn">as</span> <span class="nn">go</span>
+
+<span class="n">titlecolor</span> <span class="o">=</span> <span class="s1">&#39;white&#39;</span>
+<span class="n">bgcolor</span> <span class="o">=</span> <span class="s1">&#39;black&#39;</span>
+
+<span class="n">layout</span> <span class="o">=</span> <span class="n">go</span><span class="o">.</span><span class="n">Layout</span><span class="p">(</span>
+      <span class="n">autosize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">1200</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">800</span><span class="p">,</span>
+      <span class="n">title</span> <span class="o">=</span> <span class="s1">&#39;3D spherical topography map&#39;</span><span class="p">,</span>
+      <span class="n">titlefont</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">family</span><span class="o">=</span><span class="s1">&#39;Courier New&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">titlecolor</span><span class="p">),</span>
+      <span class="n">showlegend</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span>
+      <span class="n">scene</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">xaxis</span> <span class="o">=</span> <span class="n">noaxis</span><span class="p">,</span>
+        <span class="n">yaxis</span> <span class="o">=</span> <span class="n">noaxis</span><span class="p">,</span>
+        <span class="n">zaxis</span> <span class="o">=</span> <span class="n">noaxis</span><span class="p">,</span>
+        <span class="n">aspectmode</span><span class="o">=</span><span class="s1">&#39;manual&#39;</span><span class="p">,</span>
+        <span class="n">aspectratio</span><span class="o">=</span><span class="n">go</span><span class="o">.</span><span class="n">layout</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">Aspectratio</span><span class="p">(</span>
+            <span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">1</span><span class="p">)),</span>
+        <span class="n">paper_bgcolor</span> <span class="o">=</span> <span class="n">bgcolor</span><span class="p">,</span>
+        <span class="n">plot_bgcolor</span> <span class="o">=</span> <span class="n">bgcolor</span><span class="p">)</span>
+</code></pre></div><p>そして、用意したものを用いて描画（ここではhtml出力）します。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="kn">from</span> <span class="nn">plotly.offline</span> <span class="kn">import</span> <span class="n">plot</span>
+
+<span class="n">plot_data</span><span class="o">=</span><span class="p">[</span><span class="n">topo_sphere</span><span class="p">]</span>
+
+<span class="n">fig</span> <span class="o">=</span> <span class="n">go</span><span class="o">.</span><span class="n">Figure</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">layout</span><span class="o">=</span><span class="n">layout</span><span class="p">)</span>
+<span class="n">plot</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="n">validate</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;3DSphericalTopography.html&#39;</span><span class="p">,</span>
+     <span class="n">auto_open</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</code></pre></div><h1 id="おわりに">おわりに</h1>
+<p>これで冒頭のようなグリグリ回せる地球儀のプロットが描けたかと思います。
+私はこの上にさらに地震の分布を重ねたりして使用しています。</p>
+<p>今回の例は、球体にプロットする際には容易に応用可能ですし、用途は色々と広いかと思います。
+また、標高データはもちろん2次元の地図を作成する際にも役立ちますし、標高データで高さを表現した3次元描画も可能です。</p>
+</article><section class="article labels"><a class="tag" href=/blog/tags/python/>python</a><a class="tag" href=/blog/tags/plotly/>plotly</a><a class="tag" href=/blog/tags/3dplot/>3Dplot</a></section><div class="article share addthis_inline_share_toolbox"></div><script defer src="/blog/js/addthis_widget.min.a8bf9f6f334e22a6002d9757880b6a18a0782dbe71c8c331ba76607d0b858aa3261a116797f86516d1a8b38a0cc107c7.js#pubid=rk-453543" integrity="sha384-qL&#43;fbzNOIqYALZdXiAtqGKB4Lb5xyMMxunZgfQuFiqMmGhFnl/hlFtGos4oMwQfH"></script></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/blog/article/3_arcgis/"><span class="iconfont icon-article"></span>[Python] arcgis REST apiを用いて、高解像度の背景地図を20通り描画する。</a></p><p><a class="link" href="/blog/article/1_howtousehugo/"><span class="iconfont icon-article"></span>自前のGitHub Pagesに、Hugoを使ってBlog機能を追加する</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">© Ryota Kiuchi, All rights reserved.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p></div></section></body>
+
+</html>
