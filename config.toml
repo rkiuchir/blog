@@ -1,0 +1,52 @@
+baseURL = "http://rkiuchir.github.io/blog"
+languageCode = "ja"
+title = "rkiuchir"
+contentDir = "post"
+disableKinds = ["RSS", "sitemap"]
+theme = "hugo-notepadium"
+publishDir = "docs"
+copyright = "© Ryota Kiuchi, All rights reserved."
+
+
+hasCJKLanguage = true
+enableRobotsTXT = true
+
+paginate = 10
+
+[author]
+name = "rkiuchir"
+
+
+[markup.highlight]
+codeFences = true
+noClasses = false
+
+[taxonomies]
+tag = "tags"
+
+[params]
+style = "light"  # default: "auto", based on system. "light": light theme, "dark": dark theme.
+logo = "/images/Profile1.png"
+slogan = "Everything is gonna be fine"
+dateFormat = "Monday, January 2, 2006"
+
+[params.share]
+enable = true
+addThisId = "rk-453543"
+inlineToolId = ""
+
+[params.nav]
+showTags = true             # /tags/
+
+[params.comments]
+enable = true
+
+# custom items
+
+[[params.nav.custom]]
+title = "Twitter"
+url = "https://twitter.com/rkiuchir"
+
+[[params.nav.custom]]
+title = "AboutMe"
+url = "https://rkiuchir.github.io/"

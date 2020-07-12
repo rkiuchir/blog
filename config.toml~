@@ -1,0 +1,8 @@
+baseURL = "http://rkiuchir.github.io/blog"
+languageCode = "ja"
+title = "rkiuchir"
+contentDir = "post"
+disableKinds = ["RSS", "sitemap"]
+theme = "notepadium"
+publishDir = "docs"
+copyright = "© Ryota Kiuchi, All rights reserved."
