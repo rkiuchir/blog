@@ -99,7 +99,7 @@ fig.savefig("arcgisimage.png")
 ```
 
 ### 出力結果
-![出力結果](/image/3_arcgisimage.png)
+![出力結果](/blog/image/3_arcgisimage.png)
 
 
 ## コードの解説（一部）
