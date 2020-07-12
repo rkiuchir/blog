@@ -46,7 +46,7 @@ import numpy as np
 import seaborn as sns
 
 
-sns.set(style='ticks', font_scale=1.2)
+sns.set(style='ticks', font_scale=2.2)
 
 lonmin = 138.
 lonmax = 141.
