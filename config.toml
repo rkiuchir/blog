@@ -46,12 +46,12 @@ enable = true
 [[params.nav.custom]]
 title = "Twitter"
 url = "https://twitter.com/rkiuchir"
-
+[[params.nav.custom]]
 title = "Qiita"
 url = "https://qiita.com/rkiuchir"
-
+[[params.nav.custom]]
 title = "Medium"
 url = "https://medium.com/@rkiuchir"
-
+[[params.nav.custom]]
 title = "AboutMe"
 url = "https://rkiuchir.github.io/"
