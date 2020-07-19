@@ -26,8 +26,8 @@ tag = "tags"
 
 [params]
 style = "light"  # default: "auto", based on system. "light": light theme, "dark": dark theme.
-logo = "/images/Profile1.png"
-#logo = "/docs/images/Globe.gif"
+#logo = "/image/Profile1.png"
+logo = "/image/Globe.gif"
 slogan = "Everything is gonna be fine"
 dateFormat = "Monday, January 2, 2006"
 
