@@ -6,7 +6,7 @@ disableKinds = ["RSS", "sitemap"]
 theme = "hugo-notepadium"
 publishDir = "docs"
 copyright = "© Ryota Kiuchi, All rights reserved."
-
+googleAnalytics = "UA-118666718-3"
 
 hasCJKLanguage = true
 enableRobotsTXT = true
