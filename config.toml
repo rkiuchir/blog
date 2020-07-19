@@ -47,6 +47,11 @@ enable = true
 title = "Twitter"
 url = "https://twitter.com/rkiuchir"
 
-[[params.nav.custom]]
+title = "Qiita"
+url = "https://qiita.com/rkiuchir"
+
+title = "Medium"
+url = "https://medium.com/@rkiuchir"
+
 title = "AboutMe"
 url = "https://rkiuchir.github.io/"
